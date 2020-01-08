@@ -240,16 +240,17 @@ handleAction handleAction' handleEvent = case _ of
           delay st.debounceTime
           AVar.put unit var
 
-        -- This compututation will fork and run in the background. When the
+        newRef <- H.liftEffect (Ref.new $ Just { var, fiber })
+        H.modify_ ( _ { debounceRef = Just newRef })
+
+        -- This computation will fork and run in the background. When the
         -- var is finally filled, the action will run
         void $ H.fork do
           void $ H.liftAff $ AVar.take var
-          void $ H.liftEffect $ traverse_ (Ref.write Nothing) st.debounceRef
+          H.modify_ ( _ { debounceRef = Nothing })
           H.modify_ _ { highlightedIndex = Just 0 }
           newState <- H.get
           handleEvent $ Searched newState.search
-
-        void $ H.liftEffect $ traverse_ (Ref.write $ Just { var, fiber }) st.debounceRef
 
       Text, Just debouncer -> do
         let var = debouncer.var
